@@ -15,7 +15,6 @@ import branca
 from collections import namedtuple
 import xml.etree.ElementTree as ET
 import os
-get_ipython().run_line_magic('matplotlib', 'inline')
 
 def process_gpx_to_df(file_name):
 
