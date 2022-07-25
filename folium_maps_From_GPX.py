@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import math
 import pdb
-#from folium.plugins import MiniMap
+from folium.plugins import MiniMap
 from folium import plugins
 import folium
 from IPython.display import display, HTML
@@ -18,7 +18,6 @@ import branca
 from collections import namedtuple
 import xml.etree.ElementTree as ET
 import os
-get_ipython().run_line_magic('matplotlib', 'inline')
 
 
 # In[3]:
@@ -480,12 +479,6 @@ def make_folium_map(gpx_files, activity_reference_df, map_name='my_folium_map.ht
 camino_frances_paths=garmin_strava_combined[garmin_strava_combined.camino_family=='El Camino Frances'].sort_values(['camino_family', 'camino_name','date']).path.to_list()
 
 make_folium_map(camino_frances_paths, garmin_strava_combined, map_name='test_tracks.html', plot_method='poly_line', zoom_level=6, add_camino_info=True, mark_track_terminals=True, track_terminal_radius_size=1750)#, map_type='nat_geo')
-
-
-# In[ ]:
-
-
-get_ipython().run_cell_magic('HTML', '', '<iframe width="1000" height="500" src=\'test_tracks.html\'</iframe>')
 
 
 # In[25]:
