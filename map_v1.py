@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-
+#equirements anaconda + folium + gpxpy
 import gpxpy
 import pandas as pd
 import numpy as np
@@ -15,14 +15,15 @@ import branca
 from collections import namedtuple
 import xml.etree.ElementTree as ET
 import os
+get_ipython().run_line_magic('matplotlib', 'inline')
 
 def process_gpx_to_df(file_name):
 
     gpx = gpxpy.parse(open(file_name))  
     
     #(1)make DataFrame
-    track = gpx.tracks[0]
-    segment = track.segments[0]
+    camino = gpx.tracks[0]
+    segment = camino.segments[0]
     # Load the data into a Pandas dataframe (by way of a list)
     data = []
     segment_length = segment.length_3d()
@@ -34,11 +35,10 @@ def process_gpx_to_df(file_name):
     
     #2(make points tuple for line)
     points = []
-    for track in gpx.tracks:
-        for segment in track.segments:        
+    for camino in gpx.tracks:
+        for segment in camino.segments:        
             for point in segment.points:
                 points.append(tuple([point.latitude, point.longitude]))
-    
     return gpx_df, points
 
 def get_mid_camino(x):
@@ -67,52 +67,29 @@ def get_mid_camino(x):
 def calc_camino_summary(x):
     #pdb.set_trace()
     d = {}
-    d['Days on Camino'] = x['date'].count()
+    d['Days on Track'] = x['date'].count()
     d['Distance (km)'] = x['distance_km'].sum()
-    d['Elapsed Time (hours)'] = x['elapsed_time_sec'].sum() / 3600
-    d['Elevation Gain (m)'] = x['elevationGain'].sum()
-    d['Elevation Loss (m)'] = x['elevationLoss'].sum()
+    d['Elevation (m)'] = x['elevation'].sum()
+    #d['Elapsed Time (hours)'] = x['elapsed_time_sec'].sum() / 3600
+    #d['Elevation Gain (m)'] = x['elevationGain'].sum()
+    #d['Elevation Loss (m)'] = x['elevationLoss'].sum()
     #d['Elapsed Speed (km/h)'] = x['distance_km'].sum() / x['elapsed_time_sec'].sum() * 3600
-    d['Average Speed (km/h)'] = x['averageMovingSpeed'].median() * 3600 / 1000
+    #d['Average Speed (km/h)'] = x['averageMovingSpeed'].median() * 3600 / 1000
     #pdb.set_trace()
-    d['Max Speed (km/hr)'] = x['maxSpeed'].median() * 3600 / 1000
-    d['Average Heartrate'] = x['averageHR'].median()
-    d['Max Heartrate'] = x['maxHR'].max()
+    #d['Max Speed (km/hr)'] = x['maxSpeed'].median() * 3600 / 1000
+    #d['Average Heartrate'] = x['averageHR'].median()
+    #d['Max Heartrate'] = x['maxHR'].max()
     return pd.Series(d)
 
 
-def wikiloc_get_activity_name(gpx_file):
-    #jenky - second instane of name is what I want
-    root = ET.parse(gpx_file).getroot()
-    for elem in root.iter():
-        if elem.tag=='{http://www.topografix.com/GPX/1/1}name':
-            name = elem.text
-    return name
-        
-wikiloc_get_activity_name('caminos_wikiloc/via-de-la-plata-camino-mozarabe.gpx')
-
-gpx_file='caminos_wikiloc/via-de-la-plata-camino-mozarabe.gpx'
-root = ET.parse(gpx_file).getroot()
-for name in root.findall('{http://www.topografix.com/GPX/1/1}name'):
-    print(name.text)
+tracks = pd.read_csv('Fahrradtouren.csv',sep=';',encoding='latin')
+mask = tracks.is_camino==True
 
 
-garmin_strava_combined = pd.read_csv('garmin_strava_combined.csv')
-
-
-mask = garmin_strava_combined.is_camino==True
-
-camino_list_sorted = garmin_strava_combined[mask].sort_values(['camino_family', 'camino_name','date']).path.to_list()
-
-
-for item in garmin_strava_combined[garmin_strava_combined.camino_name=='El Camino de Valencia (Bilbao a Valencia)'].sort_values('camino_order').path.to_list():
-    print(item)
-#garmin_strava_combined[mask].camino_name.value_counts()
-pd.set_option('precision', 0)
-
+all_tracks_sorted = tracks[mask].sort_values(['family', 'camino_name','date']).path.to_list()
 
 def make_folium_map(gpx_files, activity_reference_df, map_name='my_folium_map.html', plot_method='poly_line', zoom_level=12, add_camino_info=False, mark_track_terminals=False, track_terminal_radius_size=2000, show_minimap=False, map_type='regular', fullscreen=False):
-    pd.set_option('precision', 0)
+    pd.set_option('display.precision', 0)
     i=0
     for file_name in gpx_files:
         if os.path.getsize(file_name) == 0:
@@ -130,7 +107,7 @@ def make_folium_map(gpx_files, activity_reference_df, map_name='my_folium_map.ht
         long_end = df.iloc[-1].Longitude
         
         #get activity type
-        activity = activity_reference_df[activity_reference_df.path==file_name].iloc[0].garmin_activity_name
+        activity = activity_reference_df[activity_reference_df.path==file_name].iloc[0].activity_name
         if activity=='cycling':
             activity_color='red'
             activity_icon='bicycle'
@@ -161,15 +138,10 @@ def make_folium_map(gpx_files, activity_reference_df, map_name='my_folium_map.ht
         camino_day = activity_reference_df.loc[activity_reference_df.path==file_name,:].camino_order.iloc[0].round(0)
         
         if plot_method=='poly_line':
-            if file_name in  camino_order_df.start_gpx.to_list() and add_camino_info==True:
+            if file_name in camino_order_df.start_gpx.to_list() and add_camino_info==True:
                 
                 #CREATE GROUP - FIRST TRACK IN CAMINO
-                if camino_name == 'El Camino de Valencia (Bilbao a Valencia)':
-                    fg = folium.FeatureGroup(name=camino_name, show=True)
-                elif camino_name =='El Camino de Levante':
-                    fg = folium.FeatureGroup(name=camino_name, show=False)
-                else:
-                    fg = folium.FeatureGroup(name=camino_name, show=False)
+                fg = folium.FeatureGroup(name=camino_name, show=True, overlay=True)
                 
                 mymap.add_child(fg)
                 folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap).add_to(fg)
@@ -261,55 +233,6 @@ def make_folium_map(gpx_files, activity_reference_df, map_name='my_folium_map.ht
         minimap = MiniMap(zoom_level_offset=-4)
         mymap.add_child(minimap)
         
-        
-    #ADD EXTRA CAMINOS
-    camino_folder = 'caminos_wikiloc/'
-    camino_gpx_files = os.listdir(camino_folder)
-    camino_gpx_list = []
-    for file in camino_gpx_files:
-            full_path_file = camino_folder+file
-            if os.path.getsize(full_path_file) > 0 and full_path_file[-3:]=='gpx':
-                camino_gpx_list.append(full_path_file) 
-    i = 0
-    for file_name in camino_gpx_list:
-        df, points = process_gpx_to_df(file_name)
-        print('CAMINO dataframe and points created for ' + file_name)
-        if i == 0:
-            fg = folium.FeatureGroup(name='Future Caminos', show=False)
-        i += 1
-        mymap.add_child(fg)
-        wikiloc_camino_name=wikiloc_get_activity_name(file_name)
-        folium.PolyLine(points, color='black', tooltip=wikiloc_camino_name, weight=4, opacity=.3).add_to(mymap).add_to(fg)
-        
-        
-        #get start and end lat/long
-        lat_start = df.iloc[0].Latitude
-        long_start = df.iloc[0].Longitude
-        lat_end = df.iloc[-1].Latitude
-        long_end = df.iloc[-1].Longitude
-        
-        
-        #Start Point
-        html_camino_start = """
-        Start of {camino_name}
-        """.format(camino_name=wikiloc_camino_name)
-        #circle
-        folium.vector_layers.CircleMarker(location=[lat_start, long_start], radius=9, color='grey', weight=1, fill_color='grey', fill_opacity=1,  popup=html_camino_start).add_to(mymap).add_to(fg) 
-        #triangle
-        folium.RegularPolygonMarker(location=[lat_start, long_start], 
-              fill_color='white', fill_opacity=1, color='white', number_of_sides=3, 
-              radius=3, rotation=0, popup=html_camino_start).add_to(mymap).add_to(fg)
-
-        
-        #End point
-        popup = 'End of ' + wikiloc_camino_name
-        folium.vector_layers.CircleMarker(location=[lat_end, long_end], radius=9, color='white', weight=1, fill_color='grey', fill_opacity=1,  popup=popup).add_to(mymap).add_to(fg) 
-        #OVERLAY square
-        folium.RegularPolygonMarker(location=[lat_end, long_end], 
-              fill_color='white', fill_opacity=1, color='white', number_of_sides=4, 
-              radius=3, rotation=45, popup=popup).add_to(mymap).add_to(fg)  
-        
-        
     #fullscreen option
     if fullscreen==True:
         plugins.Fullscreen(
@@ -323,7 +246,5 @@ def make_folium_map(gpx_files, activity_reference_df, map_name='my_folium_map.ht
     mymap.save(map_name)# saves to html file for display below
     mymap
 
+make_folium_map(all_tracks_sorted,tracks, map_name='all_tracks.html', plot_method='poly_line', zoom_level=6, add_camino_info=True, mark_track_terminals=True, track_terminal_radius_size=1750, fullscreen = True, show_minimap=False)#, map_type='nat_geo')
 
-camino_frances_paths=garmin_strava_combined[garmin_strava_combined.camino_family=='El Camino Frances'].sort_values(['camino_family', 'camino_name','date']).path.to_list()
-
-make_folium_map(camino_frances_paths, garmin_strava_combined, map_name='test_tracks.html', plot_method='poly_line', zoom_level=6, add_camino_info=True, mark_track_terminals=True, track_terminal_radius_size=1750)#, map_type='nat_geo')
