@@ -1,799 +1,495 @@
-{
- "cells": [
-  {
-   "cell_type": "markdown",
-   "metadata": {},
-   "source": [
-    "# NOTEBOOK FOR DOING MAPPING OF PATRICK CAMINOS"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 1,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "import gpxpy\n",
-    "import pandas as pd\n",
-    "import numpy as np\n",
-    "import math\n",
-    "import pdb\n",
-    "#from folium.plugins import MiniMap\n",
-    "from folium import plugins\n",
-    "import folium\n",
-    "from IPython.display import display, HTML\n",
-    "import branca\n",
-    "from collections import namedtuple\n",
-    "import xml.etree.ElementTree as ET\n",
-    "import os\n",
-    "%matplotlib inline"
-   ]
-  },
-  {
-   "cell_type": "markdown",
-   "metadata": {},
-   "source": [
-    "# Functions"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 3,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "def process_gpx_to_df(file_name):\n",
-    "\n",
-    "    gpx = gpxpy.parse(open(file_name))  \n",
-    "    \n",
-    "    #(1)make DataFrame\n",
-    "    track = gpx.tracks[0]\n",
-    "    segment = track.segments[0]\n",
-    "    # Load the data into a Pandas dataframe (by way of a list)\n",
-    "    data = []\n",
-    "    segment_length = segment.length_3d()\n",
-    "    for point_idx, point in enumerate(segment.points):\n",
-    "        data.append([point.longitude, point.latitude,point.elevation,\n",
-    "                     point.time, segment.get_speed(point_idx)])\n",
-    "    columns = ['Longitude', 'Latitude', 'Altitude', 'Time', 'Speed']\n",
-    "    gpx_df = pd.DataFrame(data, columns=columns)\n",
-    "    \n",
-    "    #2(make points tuple for line)\n",
-    "    points = []\n",
-    "    for track in gpx.tracks:\n",
-    "        for segment in track.segments:        \n",
-    "            for point in segment.points:\n",
-    "                points.append(tuple([point.latitude, point.longitude]))\n",
-    "    \n",
-    "    return gpx_df, points"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 4,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "def get_mid_camino(x):\n",
-    "    d={}\n",
-    "    mid_point = x['path'].count() /2\n",
-    "    if mid_point == 1:\n",
-    "        mid_point_int = int(mid_point)\n",
-    "        mid_gpx = x.sort_values('date').iloc[mid_point_int].path\n",
-    "        marker = 'mid'\n",
-    "    elif mid_point.is_integer():\n",
-    "        mid_point_int = int(mid_point)\n",
-    "        mid_gpx = x.sort_values('date').iloc[mid_point_int-1].path\n",
-    "        marker = 'end'\n",
-    "    else:\n",
-    "        mid_point_int = math.ceil(mid_point)\n",
-    "        mid_gpx = x.sort_values('date').iloc[mid_point_int-1].path\n",
-    "        marker = 'mid'\n",
-    "    d['mid_gpx'] = mid_gpx\n",
-    "    d['marker'] = marker\n",
-    "    d['start_gpx'] = x.sort_values('date').iloc[0].path\n",
-    "    d['end_gpx'] = x.sort_values('date').iloc[-1].path\n",
-    "\n",
-    "    return pd.Series(d, index=['mid_gpx', 'marker', 'start_gpx', 'end_gpx' ])"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 5,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "def calc_camino_summary(x):\n",
-    "    #pdb.set_trace()\n",
-    "    d = {}\n",
-    "    d['Days on Camino'] = x['date'].count()\n",
-    "    d['Distance (km)'] = x['distance_km'].sum()\n",
-    "    d['Elapsed Time (hours)'] = x['elapsed_time_sec'].sum() / 3600\n",
-    "    d['Elevation Gain (m)'] = x['elevationGain'].sum()\n",
-    "    d['Elevation Loss (m)'] = x['elevationLoss'].sum()\n",
-    "    #d['Elapsed Speed (km/h)'] = x['distance_km'].sum() / x['elapsed_time_sec'].sum() * 3600\n",
-    "    d['Average Speed (km/h)'] = x['averageMovingSpeed'].median() * 3600 / 1000\n",
-    "    #pdb.set_trace()\n",
-    "    d['Max Speed (km/hr)'] = x['maxSpeed'].median() * 3600 / 1000\n",
-    "    d['Average Heartrate'] = x['averageHR'].median()\n",
-    "    d['Max Heartrate'] = x['maxHR'].max()\n",
-    "    return pd.Series(d)"
-   ]
-  },
-  {
-   "cell_type": "markdown",
-   "metadata": {},
-   "source": [
-    "# Element tree parsing\n"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 1,
-   "metadata": {},
-   "outputs": [
-    {
-     "ename": "NameError",
-     "evalue": "name 'ET' is not defined",
-     "output_type": "error",
-     "traceback": [
-      "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
-      "\u001b[0;31mNameError\u001b[0m                                 Traceback (most recent call last)",
-      "\u001b[0;32m<ipython-input-1-87f424be7e18>\u001b[0m in \u001b[0;36m<module>\u001b[0;34m\u001b[0m\n\u001b[1;32m      7\u001b[0m     \u001b[0;32mreturn\u001b[0m \u001b[0mname\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      8\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 9\u001b[0;31m \u001b[0mwikiloc_get_activity_name\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m'caminos_wikiloc/via-de-la-plata-camino-mozarabe.gpx'\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m",
-      "\u001b[0;32m<ipython-input-1-87f424be7e18>\u001b[0m in \u001b[0;36mwikiloc_get_activity_name\u001b[0;34m(gpx_file)\u001b[0m\n\u001b[1;32m      1\u001b[0m \u001b[0;32mdef\u001b[0m \u001b[0mwikiloc_get_activity_name\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mgpx_file\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      2\u001b[0m     \u001b[0;31m#jenky - second instane of name is what I want\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 3\u001b[0;31m     \u001b[0mroot\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mET\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mparse\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mgpx_file\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mgetroot\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      4\u001b[0m     \u001b[0;32mfor\u001b[0m \u001b[0melem\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mroot\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0miter\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      5\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0melem\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mtag\u001b[0m\u001b[0;34m==\u001b[0m\u001b[0;34m'{http://www.topografix.com/GPX/1/1}name'\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
-      "\u001b[0;31mNameError\u001b[0m: name 'ET' is not defined"
-     ]
-    }
-   ],
-   "source": [
-    "def wikiloc_get_activity_name(gpx_file):\n",
-    "    #jenky - second instane of name is what I want\n",
-    "    root = ET.parse(gpx_file).getroot()\n",
-    "    for elem in root.iter():\n",
-    "        if elem.tag=='{http://www.topografix.com/GPX/1/1}name':\n",
-    "            name = elem.text\n",
-    "    return name\n",
-    "        \n",
-    "wikiloc_get_activity_name('caminos_wikiloc/via-de-la-plata-camino-mozarabe.gpx')"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 2,
-   "metadata": {},
-   "outputs": [
-    {
-     "ename": "NameError",
-     "evalue": "name 'ET' is not defined",
-     "output_type": "error",
-     "traceback": [
-      "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
-      "\u001b[0;31mNameError\u001b[0m                                 Traceback (most recent call last)",
-      "\u001b[0;32m<ipython-input-2-ef99e58fec0e>\u001b[0m in \u001b[0;36m<module>\u001b[0;34m\u001b[0m\n\u001b[1;32m      1\u001b[0m \u001b[0mgpx_file\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m'caminos_wikiloc/via-de-la-plata-camino-mozarabe.gpx'\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 2\u001b[0;31m \u001b[0mroot\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mET\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mparse\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mgpx_file\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mgetroot\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      3\u001b[0m \u001b[0;32mfor\u001b[0m \u001b[0mname\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mroot\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mfindall\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m'{http://www.topografix.com/GPX/1/1}name'\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      4\u001b[0m     \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mname\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mtext\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
-      "\u001b[0;31mNameError\u001b[0m: name 'ET' is not defined"
-     ]
-    }
-   ],
-   "source": [
-    "gpx_file='caminos_wikiloc/via-de-la-plata-camino-mozarabe.gpx'\n",
-    "root = ET.parse(gpx_file).getroot()\n",
-    "for name in root.findall('{http://www.topografix.com/GPX/1/1}name'):\n",
-    "    print(name.text)"
-   ]
-  },
-  {
-   "cell_type": "markdown",
-   "metadata": {},
-   "source": [
-    "\n",
-    "# Bring in historical dataframe"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 8,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "garmin_strava_combined = pd.read_csv('garmin_strava_combined.csv')"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 9,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "mask = garmin_strava_combined.is_camino==True\n",
-    "\n",
-    "camino_list_sorted = garmin_strava_combined[mask].sort_values(['camino_family', 'camino_name','date']).path.to_list()"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 27,
-   "metadata": {},
-   "outputs": [
-    {
-     "name": "stdout",
-     "output_type": "stream",
-     "text": [
-      "garmin_gpx_march_5/2020-02-10T12:32:42+00:00_4535628906.gpx\n",
-      "garmin_gpx_march_5/2020-02-11T07:12:02+00:00_4538725697.gpx\n",
-      "garmin_gpx_march_5/2020-02-12T07:47:09+00:00_4542472145.gpx\n",
-      "garmin_gpx_march_5/2020-02-13T05:57:31+00:00_4546066464.gpx\n",
-      "garmin_gpx_march_5/2020-02-14T06:32:22+00:00_4550177666.gpx\n",
-      "garmin_gpx_march_5/2020-02-15T06:02:09+00:00_4553595875.gpx\n"
-     ]
-    }
-   ],
-   "source": [
-    "for item in garmin_strava_combined[garmin_strava_combined.camino_name=='El Camino de Valencia (Bilbao a Valencia)'].sort_values('camino_order').path.to_list():\n",
-    "    print(item)\n",
-    "#garmin_strava_combined[mask].camino_name.value_counts()\n",
-    "pd.set_option('precision', 0)"
-   ]
-  },
-  {
-   "cell_type": "markdown",
-   "metadata": {},
-   "source": [
-    "# map caminos"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 18,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "#input is list of files - single tracks, not caminos - generate a map for each file\n",
-    "def make_simple_folium_map(file_name, activity_reference_df, map_name='my_folium_map.html', zoom_level=12, map_type='regular', fullscreen=False):\n",
-    "    #convert to DF and points tuple\n",
-    "    df, points = process_gpx_to_df(file_name)\n",
-    "    print('dataframe and points created for ' + file_name)\n",
-    "\n",
-    "    #get start and end lat/long\n",
-    "    lat_start = df.iloc[0].Latitude\n",
-    "    long_start = df.iloc[0].Longitude\n",
-    "    lat_end = df.iloc[-1].Latitude\n",
-    "    long_end = df.iloc[-1].Longitude\n",
-    "\n",
-    "    #get activity type\n",
-    "    activity = activity_reference_df[activity_reference_df.path==file_name].iloc[0].garmin_activity_name\n",
-    "    if activity=='cycling':\n",
-    "        activity_color='red'\n",
-    "        activity_icon='bicycle'\n",
-    "    elif activity=='hiking':\n",
-    "        activity_color='green'\n",
-    "        activity_icon='blind'\n",
-    "    else:\n",
-    "        activity_color='red'\n",
-    "        \n",
-    "    #make map\n",
-    "    if map_type=='regular':\n",
-    "                mymap = folium.Map( location=[ df.Latitude.mean(), df.Longitude.mean() ], zoom_start=zoom_level, tiles=None)\n",
-    "                folium.TileLayer('openstreetmap', name='OpenStreet Map').add_to(mymap)\n",
-    "                folium.TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', attr=\"Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC\", name='Nat Geo Map').add_to(mymap)\n",
-    "                folium.TileLayer('http://tile.stamen.com/terrain/{z}/{x}/{y}.jpg', attr=\"terrain-bcg\", name='Terrain Map').add_to(mymap)\n",
-    "    elif map_type=='terrain':\n",
-    "        mymap = folium.Map(location=[ df.Latitude.mean(), df.Longitude.mean() ], tiles='http://tile.stamen.com/terrain/{z}/{x}/{y}.jpg', attr=\"terrain-bcg\", zoom_start=zoom_level)\n",
-    "    elif map_type=='nat_geo':\n",
-    "        mymap = folium.Map(location=[ df.Latitude.mean(), df.Longitude.mean() ], tiles='https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', attr=\"Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC\", zoom_start=zoom_level)\n",
-    "\n",
-    "    #get camino day\n",
-    "    camino_day = activity_reference_df.loc[activity_reference_df.path==file_name,:].camino_order.iloc[0].round(0).astype(int)\n",
-    "    \n",
-    "    # draw line\n",
-    "    folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap)\n",
-    "                \n",
-    "    #build starting marker\n",
-    "    html_camino_start = \"\"\"\n",
-    "    Start of day {camino_day}\n",
-    "    \"\"\".format(camino_day=camino_day)\n",
-    "    popup = folium.Popup(html_camino_start, max_width=400)\n",
-    "    #nice green circle\n",
-    "    folium.vector_layers.CircleMarker(location=[lat_start, long_start], radius=9, color='white', weight=1, fill_color='green', fill_opacity=1,  popup=html_camino_start).add_to(mymap) \n",
-    "    #OVERLAY triangle\n",
-    "    folium.RegularPolygonMarker(location=[lat_start, long_start], \n",
-    "          fill_color='white', fill_opacity=1, color='white', number_of_sides=3, \n",
-    "          radius=3, rotation=0, popup=html_camino_start).add_to(mymap)\n",
-    "    \n",
-    "    \n",
-    "    #add 'mid' or 'end' marker, depending on how many tracks there are on camino (to approximate midpoint)\n",
-    "    camino_summary = garmin_strava_combined.groupby('path').apply(calc_camino_summary).loc[file_name]\n",
-    "    camino_summary_for_icon = pd.DataFrame(camino_summary).rename(columns={file_name: 'Metric'}).round(1)\n",
-    "    \n",
-    "    melt_mask = (camino_summary_for_icon['Metric'].notnull()) & (camino_summary_for_icon['Metric']!=0)\n",
-    "    camino_summary_for_icon = pd.DataFrame(camino_summary_for_icon[melt_mask]['Metric'].apply(lambda x : \"{:,}\".format(x)))\n",
-    "    camino_summary_for_icon = camino_summary_for_icon.iloc[1:,: ]\n",
-    "    html_camino_name = \"\"\"\n",
-    "    <div align=\"center\">\n",
-    "    <h5>Daily Stats</h5><br>\n",
-    "    </div>\n",
-    "\n",
-    "    \"\"\"\n",
-    "    html = html_camino_name + \"\"\"<div align=\"center\">\"\"\" + camino_summary_for_icon.to_html(justify='center', header=False, index=True, index_names=False, col_space=300, classes='table-condensed table-responsive table-success') + \"\"\"</div>\"\"\" #\n",
-    "    popup = folium.Popup(html, max_width=300)\n",
-    "\n",
-    "    #get midpoint long / lad\n",
-    "    length = df.shape[0]\n",
-    "    mid_index= math.ceil(length / 2)\n",
-    "\n",
-    "    lat = df.iloc[mid_index]['Latitude']\n",
-    "    long = df.iloc[mid_index]['Longitude']\n",
-    "    \n",
-    "    folium.Marker([lat, long], popup=popup, icon=folium.Icon(color=activity_color, icon_color='white', icon=activity_icon, prefix='fa')).add_to(mymap)\n",
-    "\n",
-    "    #END MARKER\n",
-    "    html_camino_end = \"\"\"\n",
-    "    End of day {camino_day}\n",
-    "    \"\"\".format(camino_day=camino_day)\n",
-    "    popup = html_camino_end\n",
-    "    folium.vector_layers.CircleMarker(location=[lat_end, long_end], radius=9, color='white', weight=1, fill_color='red', fill_opacity=1,  popup=popup).add_to(mymap) \n",
-    "    #OVERLAY square\n",
-    "    folium.RegularPolygonMarker(location=[lat_end, long_end], \n",
-    "          fill_color='white', fill_opacity=1, color='white', number_of_sides=4, \n",
-    "          radius=3, rotation=45, popup=popup).add_to(mymap)\n",
-    "    \n",
-    "    folium.LayerControl(collapsed=True).add_to(mymap)\n",
-    "    \n",
-    "    #fullscreen option\n",
-    "    if fullscreen==True:\n",
-    "        plugins.Fullscreen(\n",
-    "            position='topright',\n",
-    "            title='Expand me',\n",
-    "            title_cancel='Exit me',\n",
-    "            force_separate_button=True\n",
-    "        ).add_to(mymap)\n",
-    "    \n",
-    "    mymap.save(map_name)# saves to html file for display below\n",
-    "    mymap"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 24,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "def make_folium_map(gpx_files, activity_reference_df, map_name='my_folium_map.html', plot_method='poly_line', zoom_level=12, add_camino_info=False, mark_track_terminals=False, track_terminal_radius_size=2000, show_minimap=False, map_type='regular', fullscreen=False):\n",
-    "    pd.set_option('precision', 0)\n",
-    "    i=0\n",
-    "    for file_name in gpx_files:\n",
-    "        if os.path.getsize(file_name) == 0:\n",
-    "            print('skipping this file due to it being EMPTY: ' + file_name)\n",
-    "            continue\n",
-    "    \n",
-    "        #convert to DF and points tuple\n",
-    "        df, points = process_gpx_to_df(file_name)\n",
-    "        print('dataframe and points created for ' + file_name)\n",
-    "        \n",
-    "        #get start and end lat/long\n",
-    "        lat_start = df.iloc[0].Latitude\n",
-    "        long_start = df.iloc[0].Longitude\n",
-    "        lat_end = df.iloc[-1].Latitude\n",
-    "        long_end = df.iloc[-1].Longitude\n",
-    "        \n",
-    "        #get activity type\n",
-    "        activity = activity_reference_df[activity_reference_df.path==file_name].iloc[0].garmin_activity_name\n",
-    "        if activity=='cycling':\n",
-    "            activity_color='red'\n",
-    "            activity_icon='bicycle'\n",
-    "        elif activity=='hiking':\n",
-    "            activity_color='green'\n",
-    "            activity_icon='blind'\n",
-    "        else:\n",
-    "            activity_color='red'\n",
-    "        \n",
-    "        if i==0:\n",
-    "            #mymap = folium.Map( location=[ df.Latitude.mean(), df.Longitude.mean() ], zoom_start=zoom_level)\n",
-    "            if map_type=='regular':\n",
-    "                mymap = folium.Map( location=[ df.Latitude.mean(), df.Longitude.mean() ], zoom_start=zoom_level, tiles=None)\n",
-    "                folium.TileLayer('openstreetmap', name='OpenStreet Map').add_to(mymap)\n",
-    "                folium.TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', attr=\"Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC\", name='Nat Geo Map').add_to(mymap)\n",
-    "\n",
-    "            elif map_type=='terrain':\n",
-    "                mymap = folium.Map(location=[ df.Latitude.mean(), df.Longitude.mean() ], tiles='http://tile.stamen.com/terrain/{z}/{x}/{y}.jpg', attr=\"terrain-bcg\", zoom_start=zoom_level)\n",
-    "            elif map_type=='nat_geo':\n",
-    "                mymap = folium.Map(location=[ df.Latitude.mean(), df.Longitude.mean() ], tiles='https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', attr=\"Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC\", zoom_start=zoom_level)\n",
-    "\n",
-    "                #folium.LayerControl().add_to(mymap)\n",
-    "\n",
-    "        camino_order_df = activity_reference_df.groupby('camino_name').apply(get_mid_camino)\n",
-    "\n",
-    "        camino_name = activity_reference_df.loc[activity_reference_df.path==file_name,:].camino_name.iloc[0]\n",
-    "        camino_distance = activity_reference_df.loc[activity_reference_df.path==file_name,:].distance_km.iloc[0].round(1)\n",
-    "        camino_day = activity_reference_df.loc[activity_reference_df.path==file_name,:].camino_order.iloc[0].round(0)\n",
-    "        \n",
-    "        if plot_method=='poly_line':\n",
-    "            if file_name in  camino_order_df.start_gpx.to_list() and add_camino_info==True:\n",
-    "                \n",
-    "                #CREATE GROUP - FIRST TRACK IN CAMINO\n",
-    "                if camino_name == 'El Camino de Valencia (Bilbao a Valencia)':\n",
-    "                    fg = folium.FeatureGroup(name=camino_name, show=True)\n",
-    "                elif camino_name =='El Camino de Levante':\n",
-    "                    fg = folium.FeatureGroup(name=camino_name, show=False)\n",
-    "                else:\n",
-    "                    fg = folium.FeatureGroup(name=camino_name, show=False)\n",
-    "                \n",
-    "                mymap.add_child(fg)\n",
-    "                folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap).add_to(fg)\n",
-    "                \n",
-    "                #build starting marker\n",
-    "                html_camino_start = \"\"\"\n",
-    "                Start of {camino_name}\n",
-    "                \"\"\".format(camino_name=camino_name)\n",
-    "                popup = folium.Popup(html_camino_start, max_width=400)\n",
-    "                #nice green circle\n",
-    "                folium.vector_layers.CircleMarker(location=[lat_start, long_start], radius=9, color='white', weight=1, fill_color='green', fill_opacity=1,  popup=html_camino_start).add_to(mymap).add_to(fg) \n",
-    "                #OVERLAY triangle\n",
-    "                folium.RegularPolygonMarker(location=[lat_start, long_start], \n",
-    "                      fill_color='white', fill_opacity=1, color='white', number_of_sides=3, \n",
-    "                      radius=3, rotation=0, popup=html_camino_start).add_to(mymap).add_to(fg)\n",
-    "\n",
-    "            elif file_name in  camino_order_df.mid_gpx.to_list() and add_camino_info==True:\n",
-    "                camino_summary = activity_reference_df.groupby('camino_name').apply(calc_camino_summary)\n",
-    "                #add 'mid' or 'end' marker, depending on how many tracks there are on camino (to approximate midpoint)\n",
-    "                marker_location = camino_order_df.loc[camino_order_df.mid_gpx==file_name,'marker'][0]\n",
-    "                mask = (camino_summary.index==camino_name) \n",
-    "                camino_summary_for_icon = camino_summary[mask].melt().rename(columns={'variable':'Metric'}).set_index('Metric').round(1)\n",
-    "                melt_mask = (camino_summary_for_icon['value'].notnull()) & (camino_summary_for_icon['value']!=0)\n",
-    "                camino_summary_for_icon = pd.DataFrame(camino_summary_for_icon[melt_mask]['value'].apply(lambda x : \"{:,}\".format(x)))\n",
-    "\n",
-    "                html_camino_name = \"\"\"\n",
-    "                <div align=\"justify\">\n",
-    "                <h5>{camino_name}</h5><br>\n",
-    "                </div>\n",
-    "\n",
-    "                \"\"\".format(camino_name=camino_name)\n",
-    "                html = html_camino_name + \"\"\"<div align=\"center\">\"\"\" + camino_summary_for_icon.to_html(justify='center', header=False, index=True, index_names=False, col_space=300, classes='table-condensed table-responsive table-success') + \"\"\"</div>\"\"\" #\n",
-    "                popup = folium.Popup(html, max_width=300)\n",
-    "                \n",
-    "\n",
-    "                if marker_location=='mid':\n",
-    "                    #get midpoint long / lad\n",
-    "                    length = df.shape[0]\n",
-    "                    mid_index= math.ceil(length / 2)\n",
-    "\n",
-    "                    lat = df.iloc[mid_index]['Latitude']\n",
-    "                    long = df.iloc[mid_index]['Longitude']\n",
-    "                else:\n",
-    "                    lat = lat_end\n",
-    "                    long = long_end\n",
-    "                mymap.add_child(fg)\n",
-    "                #create line:\n",
-    "                folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap).add_to(fg)\n",
-    "                \n",
-    "                folium.Marker([lat, long], popup=popup, icon=folium.Icon(color=activity_color, icon_color='white', icon=activity_icon, prefix='fa')).add_to(mymap).add_to(fg)\n",
-    "\n",
-    "            #CAMINO END:  \n",
-    "            elif file_name in  camino_order_df.end_gpx.to_list() and add_camino_info==True:\n",
-    "                mymap.add_child(fg)\n",
-    "                #create line:\n",
-    "                folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap).add_to(fg)\n",
-    "                \n",
-    "                #camino end marker ORIGINAL THAT WORKS\n",
-    "                html_camino_end = \"\"\"\n",
-    "                End of {camino_name}\n",
-    "                \"\"\".format(camino_name=camino_name)\n",
-    "                popup = html_camino_end\n",
-    "                \n",
-    "                #nice red circle\n",
-    "                folium.vector_layers.CircleMarker(location=[lat_end, long_end], radius=9, color='white', weight=1, fill_color='red', fill_opacity=1,  popup=popup).add_to(mymap).add_to(fg) \n",
-    "                #OVERLAY square\n",
-    "                folium.RegularPolygonMarker(location=[lat_end, long_end], \n",
-    "                      fill_color='white', fill_opacity=1, color='white', number_of_sides=4, \n",
-    "                      radius=3, rotation=45, popup=popup).add_to(mymap).add_to(fg)            \n",
-    "            elif add_camino_info==True:\n",
-    "                mymap.add_child(fg)\n",
-    "                folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap).add_to(fg)         \n",
-    "           \n",
-    "        if mark_track_terminals==True and (file_name not in  camino_order_df.end_gpx.to_list()):\n",
-    "            day_terminal_message = 'End of Day ' +str(camino_day)[:-2]+ '.  Distance: ' + str(camino_distance) + ' km.'\n",
-    "            mymap.add_child(fg)\n",
-    "            folium.vector_layers.Circle(location=[lat_end, long_end], radius=track_terminal_radius_size, color=activity_color, fill_color=activity_color, weight=2, fill_opacity=0.3,  tooltip=day_terminal_message).add_to(mymap).add_to(fg)\n",
-    "        if plot_method=='circle_marker':\n",
-    "            coordinate_counter = 30\n",
-    "            for coord in df[['Latitude','Longitude']].values:\n",
-    "                if 1==1:\n",
-    "                    #every 10th element, mark\n",
-    "                    folium.CircleMarker(location=[coord[0],coord[1]], radius=1,color=activity_color).add_to(mymap)\n",
-    "                coordinate_counter += 1\n",
-    "                \n",
-    "        i+=1\n",
-    "        print('TRACK ADDED FOR created for ' + file_name)\n",
-    "    if show_minimap == True:\n",
-    "        minimap = MiniMap(zoom_level_offset=-4)\n",
-    "        mymap.add_child(minimap)\n",
-    "        \n",
-    "        \n",
-    "    #ADD EXTRA CAMINOS\n",
-    "    camino_folder = 'caminos_wikiloc/'\n",
-    "    camino_gpx_files = os.listdir(camino_folder)\n",
-    "    camino_gpx_list = []\n",
-    "    for file in camino_gpx_files:\n",
-    "            full_path_file = camino_folder+file\n",
-    "            if os.path.getsize(full_path_file) > 0 and full_path_file[-3:]=='gpx':\n",
-    "                camino_gpx_list.append(full_path_file) \n",
-    "    i = 0\n",
-    "    for file_name in camino_gpx_list:\n",
-    "        df, points = process_gpx_to_df(file_name)\n",
-    "        print('CAMINO dataframe and points created for ' + file_name)\n",
-    "        if i == 0:\n",
-    "            fg = folium.FeatureGroup(name='Future Caminos', show=False)\n",
-    "        i += 1\n",
-    "        mymap.add_child(fg)\n",
-    "        wikiloc_camino_name=wikiloc_get_activity_name(file_name)\n",
-    "        folium.PolyLine(points, color='black', tooltip=wikiloc_camino_name, weight=4, opacity=.3).add_to(mymap).add_to(fg)\n",
-    "        \n",
-    "        \n",
-    "        #get start and end lat/long\n",
-    "        lat_start = df.iloc[0].Latitude\n",
-    "        long_start = df.iloc[0].Longitude\n",
-    "        lat_end = df.iloc[-1].Latitude\n",
-    "        long_end = df.iloc[-1].Longitude\n",
-    "        \n",
-    "        \n",
-    "        #Start Point\n",
-    "        html_camino_start = \"\"\"\n",
-    "        Start of {camino_name}\n",
-    "        \"\"\".format(camino_name=wikiloc_camino_name)\n",
-    "        #circle\n",
-    "        folium.vector_layers.CircleMarker(location=[lat_start, long_start], radius=9, color='grey', weight=1, fill_color='grey', fill_opacity=1,  popup=html_camino_start).add_to(mymap).add_to(fg) \n",
-    "        #triangle\n",
-    "        folium.RegularPolygonMarker(location=[lat_start, long_start], \n",
-    "              fill_color='white', fill_opacity=1, color='white', number_of_sides=3, \n",
-    "              radius=3, rotation=0, popup=html_camino_start).add_to(mymap).add_to(fg)\n",
-    "\n",
-    "        \n",
-    "        #End point\n",
-    "        popup = 'End of ' + wikiloc_camino_name\n",
-    "        folium.vector_layers.CircleMarker(location=[lat_end, long_end], radius=9, color='white', weight=1, fill_color='grey', fill_opacity=1,  popup=popup).add_to(mymap).add_to(fg) \n",
-    "        #OVERLAY square\n",
-    "        folium.RegularPolygonMarker(location=[lat_end, long_end], \n",
-    "              fill_color='white', fill_opacity=1, color='white', number_of_sides=4, \n",
-    "              radius=3, rotation=45, popup=popup).add_to(mymap).add_to(fg)  \n",
-    "        \n",
-    "        \n",
-    "    #fullscreen option\n",
-    "    if fullscreen==True:\n",
-    "        plugins.Fullscreen(\n",
-    "            position='topright',\n",
-    "            title='Expand me',\n",
-    "            title_cancel='Exit me',\n",
-    "            force_separate_button=True\n",
-    "        ).add_to(mymap)\n",
-    "\n",
-    "    folium.LayerControl(collapsed=True).add_to(mymap)\n",
-    "    mymap.save(map_name)# saves to html file for display below\n",
-    "    mymap\n",
-    "    "
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "camino_frances_paths=garmin_strava_combined[garmin_strava_combined.camino_family=='El Camino Frances'].sort_values(['camino_family', 'camino_name','date']).path.to_list()\n",
-    "\n",
-    "make_folium_map(camino_frances_paths, garmin_strava_combined, map_name='test_tracks.html', plot_method='poly_line', zoom_level=6, add_camino_info=True, mark_track_terminals=True, track_terminal_radius_size=1750)#, map_type='nat_geo')\n"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "%%HTML\n",
-    "<iframe width=\"1000\" height=\"500\" src='test_tracks.html'</iframe>"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 25,
-   "metadata": {},
-   "outputs": [
-    {
-     "name": "stdout",
-     "output_type": "stream",
-     "text": [
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1061200985.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1061200985.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/743650903.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/743650903.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/744442473.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/744442473.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/746461052.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/746461052.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/904039800.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/904039800.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/904569933.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/904569933.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1062495094.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1062495094.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1064168921.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1064168921.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1065476224.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1065476224.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1066734776.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1066734776.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1068995914.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1068995914.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1068997525.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1068997525.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1092639166.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1092639166.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/746460824.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/746460824.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-06-28T06:36:42+00:00_3792448931.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-06-28T06:36:42+00:00_3792448931.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-06-29T06:53:39+00:00_3799392916.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-06-29T06:53:39+00:00_3799392916.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-06-30T04:19:18+00:00_3799399130.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-06-30T04:19:18+00:00_3799399130.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-01T05:05:15+00:00_3801985229.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-01T05:05:15+00:00_3801985229.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-02T05:52:56+00:00_3804944682.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-02T05:52:56+00:00_3804944682.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-03T04:31:06+00:00_3808503631.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-03T04:31:06+00:00_3808503631.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-04T06:41:14+00:00_3812765354.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-04T06:41:14+00:00_3812765354.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-05T07:12:47+00:00_3817200533.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-05T07:12:47+00:00_3817200533.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-07T06:27:30+00:00_3821998678.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-07T06:27:30+00:00_3821998678.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-07T14:32:36+00:00_3821998891.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-07T14:32:36+00:00_3821998891.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-08T05:49:58+00:00_3825163853.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-08T05:49:58+00:00_3825163853.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-10T09:51:10+00:00_3832148798.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-10T09:51:10+00:00_3832148798.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-25T03:44:24+00:00_3881110195.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-25T03:44:24+00:00_3881110195.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-26T04:42:41+00:00_3884556231.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-26T04:42:41+00:00_3884556231.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-27T04:48:12+00:00_3887675334.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-27T04:48:12+00:00_3887675334.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-28T05:17:57+00:00_3890636063.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-28T05:17:57+00:00_3890636063.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-30T06:02:30+00:00_3898113033.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-30T06:02:30+00:00_3898113033.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-07-31T05:23:20+00:00_3901185690.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-07-31T05:23:20+00:00_3901185690.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-01T04:37:58+00:00_3904248291.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-01T04:37:58+00:00_3904248291.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-02T04:34:16+00:00_3907560975.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-02T04:34:16+00:00_3907560975.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-03T04:56:45+00:00_3911191365.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-03T04:56:45+00:00_3911191365.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-04T06:06:38+00:00_3914806519.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-04T06:06:38+00:00_3914806519.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-05T04:15:59+00:00_3918238317.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-05T04:15:59+00:00_3918238317.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-06T04:12:04+00:00_3922128027.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-06T04:12:04+00:00_3922128027.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-07T04:01:17+00:00_3925016804.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-07T04:01:17+00:00_3925016804.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-08T04:15:31+00:00_3928186229.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-08T04:15:31+00:00_3928186229.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-09T06:27:26+00:00_3931930805.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-09T06:27:26+00:00_3931930805.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-10T03:39:24+00:00_3935165332.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-10T03:39:24+00:00_3935165332.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-11T04:52:57+00:00_3938882331.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-11T04:52:57+00:00_3938882331.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-12T04:55:27+00:00_3942109419.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-12T04:55:27+00:00_3942109419.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-13T04:49:16+00:00_3945547045.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-13T04:49:16+00:00_3945547045.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-14T07:10:53+00:00_3950337831.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-14T07:10:53+00:00_3950337831.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-15T05:03:24+00:00_3953225206.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-15T05:03:24+00:00_3953225206.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-16T04:48:14+00:00_3957364645.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-16T04:48:14+00:00_3957364645.gpx\n"
-     ]
-    },
-    {
-     "name": "stdout",
-     "output_type": "stream",
-     "text": [
-      "dataframe and points created for garmin_gpx_march_5/2019-08-17T04:30:25+00:00_3960421803.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-17T04:30:25+00:00_3960421803.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-18T05:52:42+00:00_3963465838.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-18T05:52:42+00:00_3963465838.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-19T06:05:52+00:00_3967584344.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-19T06:05:52+00:00_3967584344.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-20T05:14:50+00:00_3970145256.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-20T05:14:50+00:00_3970145256.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-21T05:11:55+00:00_3974464781.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-21T05:11:55+00:00_3974464781.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-22T02:37:09+00:00_3977171028.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-22T02:37:09+00:00_3977171028.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-23T17:15:05+00:00_3984470122.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-23T17:15:05+00:00_3984470122.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2019-08-24T05:27:17+00:00_3984503425.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2019-08-24T05:27:17+00:00_3984503425.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1740940143.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1740940143.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1743743164.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1743743164.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1746662401.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1746662401.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1746664992.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1746664992.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1749120991.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1749120991.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1750565040.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1750565040.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1753617677.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1753617677.gpx\n",
-      "dataframe and points created for strava_gpx_archive_march_4_2020/1753617989.gpx\n",
-      "TRACK ADDED FOR created for strava_gpx_archive_march_4_2020/1753617989.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2020-01-16T09:01:15+00:00_4444065874.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2020-01-16T09:01:15+00:00_4444065874.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2020-02-01T08:05:12+00:00_4501318907.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2020-02-01T08:05:12+00:00_4501318907.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2020-02-29T06:47:16+00:00_4603060981.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2020-02-29T06:47:16+00:00_4603060981.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2020-02-10T12:32:42+00:00_4535628906.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2020-02-10T12:32:42+00:00_4535628906.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2020-02-11T07:12:02+00:00_4538725697.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2020-02-11T07:12:02+00:00_4538725697.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2020-02-12T07:47:09+00:00_4542472145.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2020-02-12T07:47:09+00:00_4542472145.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2020-02-13T05:57:31+00:00_4546066464.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2020-02-13T05:57:31+00:00_4546066464.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2020-02-14T06:32:22+00:00_4550177666.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2020-02-14T06:32:22+00:00_4550177666.gpx\n",
-      "dataframe and points created for garmin_gpx_march_5/2020-02-15T06:02:09+00:00_4553595875.gpx\n",
-      "TRACK ADDED FOR created for garmin_gpx_march_5/2020-02-15T06:02:09+00:00_4553595875.gpx\n",
-      "CAMINO dataframe and points created for caminos_wikiloc/camino-de-santiago-catalan-por-san-juan-de-la-pena-original-.gpx\n",
-      "CAMINO dataframe and points created for caminos_wikiloc/via-de-la-plata-camino-mozarabe.gpx\n",
-      "CAMINO dataframe and points created for caminos_wikiloc/camino-de-santiago-de-levante.gpx\n",
-      "CAMINO dataframe and points created for caminos_wikiloc/camino-olvidado-de-santiago-camino-de-invierno-de-santiago-m.gpx\n",
-      "CAMINO dataframe and points created for caminos_wikiloc/camino-santiago-europeo-1aparte-tallinn-praga.gpx\n",
-      "CAMINO dataframe and points created for caminos_wikiloc/caminho-portugues.gpx\n",
-      "CAMINO dataframe and points created for caminos_wikiloc/camino-santiago-frances-roncesvalles-santiago-de-compostela-.gpx\n",
-      "CAMINO dataframe and points created for caminos_wikiloc/camino-santiago-primitivo-completo-oviedo-santiago-de-compos.gpx\n",
-      "CAMINO dataframe and points created for caminos_wikiloc/camino-de-santiago-ingles-completo.gpx\n"
-     ]
-    }
-   ],
-   "source": [
-    "make_folium_map(camino_list_sorted, garmin_strava_combined, map_name='march_24_valencia_map.html', plot_method='poly_line', zoom_level=6, add_camino_info=True, mark_track_terminals=True, track_terminal_radius_size=1750, fullscreen=True)#, map_type='terrain')"
-   ]
-  }
- ],
- "metadata": {
-  "kernelspec": {
-   "display_name": "Python 3.9.4 64-bit",
-   "language": "python",
-   "name": "python3"
-  },
-  "language_info": {
-   "codemirror_mode": {
-    "name": "ipython",
-    "version": 3
-   },
-   "file_extension": ".py",
-   "mimetype": "text/x-python",
-   "name": "python",
-   "nbconvert_exporter": "python",
-   "pygments_lexer": "ipython3",
-   "version": "3.9.4"
-  },
-  "vscode": {
-   "interpreter": {
-    "hash": "3e14ead1e6af41985dcc8b8cf66801b3fe9eb50cec161cb97b975c10be67b469"
-   }
-  }
- },
- "nbformat": 4,
- "nbformat_minor": 2
-}
+#!/usr/bin/env python
+# coding: utf-8
+
+
+# In[1]:
+
+
+import gpxpy
+import pandas as pd
+import numpy as np
+import math
+import pdb
+#from folium.plugins import MiniMap
+from folium import plugins
+import folium
+from IPython.display import display, HTML
+import branca
+from collections import namedtuple
+import xml.etree.ElementTree as ET
+import os
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+
+# In[3]:
+
+
+def process_gpx_to_df(file_name):
+
+    gpx = gpxpy.parse(open(file_name))  
+    
+    #(1)make DataFrame
+    track = gpx.tracks[0]
+    segment = track.segments[0]
+    # Load the data into a Pandas dataframe (by way of a list)
+    data = []
+    segment_length = segment.length_3d()
+    for point_idx, point in enumerate(segment.points):
+        data.append([point.longitude, point.latitude,point.elevation,
+                     point.time, segment.get_speed(point_idx)])
+    columns = ['Longitude', 'Latitude', 'Altitude', 'Time', 'Speed']
+    gpx_df = pd.DataFrame(data, columns=columns)
+    
+    #2(make points tuple for line)
+    points = []
+    for track in gpx.tracks:
+        for segment in track.segments:        
+            for point in segment.points:
+                points.append(tuple([point.latitude, point.longitude]))
+    
+    return gpx_df, points
+
+
+# In[4]:
+
+
+def get_mid_camino(x):
+    d={}
+    mid_point = x['path'].count() /2
+    if mid_point == 1:
+        mid_point_int = int(mid_point)
+        mid_gpx = x.sort_values('date').iloc[mid_point_int].path
+        marker = 'mid'
+    elif mid_point.is_integer():
+        mid_point_int = int(mid_point)
+        mid_gpx = x.sort_values('date').iloc[mid_point_int-1].path
+        marker = 'end'
+    else:
+        mid_point_int = math.ceil(mid_point)
+        mid_gpx = x.sort_values('date').iloc[mid_point_int-1].path
+        marker = 'mid'
+    d['mid_gpx'] = mid_gpx
+    d['marker'] = marker
+    d['start_gpx'] = x.sort_values('date').iloc[0].path
+    d['end_gpx'] = x.sort_values('date').iloc[-1].path
+
+    return pd.Series(d, index=['mid_gpx', 'marker', 'start_gpx', 'end_gpx' ])
+
+
+# In[5]:
+
+
+def calc_camino_summary(x):
+    #pdb.set_trace()
+    d = {}
+    d['Days on Camino'] = x['date'].count()
+    d['Distance (km)'] = x['distance_km'].sum()
+    d['Elapsed Time (hours)'] = x['elapsed_time_sec'].sum() / 3600
+    d['Elevation Gain (m)'] = x['elevationGain'].sum()
+    d['Elevation Loss (m)'] = x['elevationLoss'].sum()
+    #d['Elapsed Speed (km/h)'] = x['distance_km'].sum() / x['elapsed_time_sec'].sum() * 3600
+    d['Average Speed (km/h)'] = x['averageMovingSpeed'].median() * 3600 / 1000
+    #pdb.set_trace()
+    d['Max Speed (km/hr)'] = x['maxSpeed'].median() * 3600 / 1000
+    d['Average Heartrate'] = x['averageHR'].median()
+    d['Max Heartrate'] = x['maxHR'].max()
+    return pd.Series(d)
+
+
+# # Element tree parsing
+# 
+
+# In[1]:
+
+
+def wikiloc_get_activity_name(gpx_file):
+    #jenky - second instane of name is what I want
+    root = ET.parse(gpx_file).getroot()
+    for elem in root.iter():
+        if elem.tag=='{http://www.topografix.com/GPX/1/1}name':
+            name = elem.text
+    return name
+        
+wikiloc_get_activity_name('caminos_wikiloc/via-de-la-plata-camino-mozarabe.gpx')
+
+
+# In[2]:
+
+
+gpx_file='caminos_wikiloc/via-de-la-plata-camino-mozarabe.gpx'
+root = ET.parse(gpx_file).getroot()
+for name in root.findall('{http://www.topografix.com/GPX/1/1}name'):
+    print(name.text)
+
+
+# 
+# # Bring in historical dataframe
+
+# In[8]:
+
+
+garmin_strava_combined = pd.read_csv('garmin_strava_combined.csv')
+
+
+# In[9]:
+
+
+mask = garmin_strava_combined.is_camino==True
+
+camino_list_sorted = garmin_strava_combined[mask].sort_values(['camino_family', 'camino_name','date']).path.to_list()
+
+
+# In[27]:
+
+
+for item in garmin_strava_combined[garmin_strava_combined.camino_name=='El Camino de Valencia (Bilbao a Valencia)'].sort_values('camino_order').path.to_list():
+    print(item)
+#garmin_strava_combined[mask].camino_name.value_counts()
+pd.set_option('precision', 0)
+
+
+# # map caminos
+
+# In[18]:
+
+
+#input is list of files - single tracks, not caminos - generate a map for each file
+def make_simple_folium_map(file_name, activity_reference_df, map_name='my_folium_map.html', zoom_level=12, map_type='regular', fullscreen=False):
+    #convert to DF and points tuple
+    df, points = process_gpx_to_df(file_name)
+    print('dataframe and points created for ' + file_name)
+
+    #get start and end lat/long
+    lat_start = df.iloc[0].Latitude
+    long_start = df.iloc[0].Longitude
+    lat_end = df.iloc[-1].Latitude
+    long_end = df.iloc[-1].Longitude
+
+    #get activity type
+    activity = activity_reference_df[activity_reference_df.path==file_name].iloc[0].garmin_activity_name
+    if activity=='cycling':
+        activity_color='red'
+        activity_icon='bicycle'
+    elif activity=='hiking':
+        activity_color='green'
+        activity_icon='blind'
+    else:
+        activity_color='red'
+        
+    #make map
+    if map_type=='regular':
+                mymap = folium.Map( location=[ df.Latitude.mean(), df.Longitude.mean() ], zoom_start=zoom_level, tiles=None)
+                folium.TileLayer('openstreetmap', name='OpenStreet Map').add_to(mymap)
+                folium.TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', attr="Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC", name='Nat Geo Map').add_to(mymap)
+                folium.TileLayer('http://tile.stamen.com/terrain/{z}/{x}/{y}.jpg', attr="terrain-bcg", name='Terrain Map').add_to(mymap)
+    elif map_type=='terrain':
+        mymap = folium.Map(location=[ df.Latitude.mean(), df.Longitude.mean() ], tiles='http://tile.stamen.com/terrain/{z}/{x}/{y}.jpg', attr="terrain-bcg", zoom_start=zoom_level)
+    elif map_type=='nat_geo':
+        mymap = folium.Map(location=[ df.Latitude.mean(), df.Longitude.mean() ], tiles='https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', attr="Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC", zoom_start=zoom_level)
+
+    #get camino day
+    camino_day = activity_reference_df.loc[activity_reference_df.path==file_name,:].camino_order.iloc[0].round(0).astype(int)
+    
+    # draw line
+    folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap)
+                
+    #build starting marker
+    html_camino_start = """
+    Start of day {camino_day}
+    """.format(camino_day=camino_day)
+    popup = folium.Popup(html_camino_start, max_width=400)
+    #nice green circle
+    folium.vector_layers.CircleMarker(location=[lat_start, long_start], radius=9, color='white', weight=1, fill_color='green', fill_opacity=1,  popup=html_camino_start).add_to(mymap) 
+    #OVERLAY triangle
+    folium.RegularPolygonMarker(location=[lat_start, long_start], 
+          fill_color='white', fill_opacity=1, color='white', number_of_sides=3, 
+          radius=3, rotation=0, popup=html_camino_start).add_to(mymap)
+    
+    
+    #add 'mid' or 'end' marker, depending on how many tracks there are on camino (to approximate midpoint)
+    camino_summary = garmin_strava_combined.groupby('path').apply(calc_camino_summary).loc[file_name]
+    camino_summary_for_icon = pd.DataFrame(camino_summary).rename(columns={file_name: 'Metric'}).round(1)
+    
+    melt_mask = (camino_summary_for_icon['Metric'].notnull()) & (camino_summary_for_icon['Metric']!=0)
+    camino_summary_for_icon = pd.DataFrame(camino_summary_for_icon[melt_mask]['Metric'].apply(lambda x : "{:,}".format(x)))
+    camino_summary_for_icon = camino_summary_for_icon.iloc[1:,: ]
+    html_camino_name = """
+    <div align="center">
+    <h5>Daily Stats</h5><br>
+    </div>
+
+    """
+    html = html_camino_name + """<div align="center">""" + camino_summary_for_icon.to_html(justify='center', header=False, index=True, index_names=False, col_space=300, classes='table-condensed table-responsive table-success') + """</div>""" #
+    popup = folium.Popup(html, max_width=300)
+
+    #get midpoint long / lad
+    length = df.shape[0]
+    mid_index= math.ceil(length / 2)
+
+    lat = df.iloc[mid_index]['Latitude']
+    long = df.iloc[mid_index]['Longitude']
+    
+    folium.Marker([lat, long], popup=popup, icon=folium.Icon(color=activity_color, icon_color='white', icon=activity_icon, prefix='fa')).add_to(mymap)
+
+    #END MARKER
+    html_camino_end = """
+    End of day {camino_day}
+    """.format(camino_day=camino_day)
+    popup = html_camino_end
+    folium.vector_layers.CircleMarker(location=[lat_end, long_end], radius=9, color='white', weight=1, fill_color='red', fill_opacity=1,  popup=popup).add_to(mymap) 
+    #OVERLAY square
+    folium.RegularPolygonMarker(location=[lat_end, long_end], 
+          fill_color='white', fill_opacity=1, color='white', number_of_sides=4, 
+          radius=3, rotation=45, popup=popup).add_to(mymap)
+    
+    folium.LayerControl(collapsed=True).add_to(mymap)
+    
+    #fullscreen option
+    if fullscreen==True:
+        plugins.Fullscreen(
+            position='topright',
+            title='Expand me',
+            title_cancel='Exit me',
+            force_separate_button=True
+        ).add_to(mymap)
+    
+    mymap.save(map_name)# saves to html file for display below
+    mymap
+
+
+# In[24]:
+
+
+def make_folium_map(gpx_files, activity_reference_df, map_name='my_folium_map.html', plot_method='poly_line', zoom_level=12, add_camino_info=False, mark_track_terminals=False, track_terminal_radius_size=2000, show_minimap=False, map_type='regular', fullscreen=False):
+    pd.set_option('precision', 0)
+    i=0
+    for file_name in gpx_files:
+        if os.path.getsize(file_name) == 0:
+            print('skipping this file due to it being EMPTY: ' + file_name)
+            continue
+    
+        #convert to DF and points tuple
+        df, points = process_gpx_to_df(file_name)
+        print('dataframe and points created for ' + file_name)
+        
+        #get start and end lat/long
+        lat_start = df.iloc[0].Latitude
+        long_start = df.iloc[0].Longitude
+        lat_end = df.iloc[-1].Latitude
+        long_end = df.iloc[-1].Longitude
+        
+        #get activity type
+        activity = activity_reference_df[activity_reference_df.path==file_name].iloc[0].garmin_activity_name
+        if activity=='cycling':
+            activity_color='red'
+            activity_icon='bicycle'
+        elif activity=='hiking':
+            activity_color='green'
+            activity_icon='blind'
+        else:
+            activity_color='red'
+        
+        if i==0:
+            #mymap = folium.Map( location=[ df.Latitude.mean(), df.Longitude.mean() ], zoom_start=zoom_level)
+            if map_type=='regular':
+                mymap = folium.Map( location=[ df.Latitude.mean(), df.Longitude.mean() ], zoom_start=zoom_level, tiles=None)
+                folium.TileLayer('openstreetmap', name='OpenStreet Map').add_to(mymap)
+                folium.TileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', attr="Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC", name='Nat Geo Map').add_to(mymap)
+
+            elif map_type=='terrain':
+                mymap = folium.Map(location=[ df.Latitude.mean(), df.Longitude.mean() ], tiles='http://tile.stamen.com/terrain/{z}/{x}/{y}.jpg', attr="terrain-bcg", zoom_start=zoom_level)
+            elif map_type=='nat_geo':
+                mymap = folium.Map(location=[ df.Latitude.mean(), df.Longitude.mean() ], tiles='https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', attr="Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC", zoom_start=zoom_level)
+
+                #folium.LayerControl().add_to(mymap)
+
+        camino_order_df = activity_reference_df.groupby('camino_name').apply(get_mid_camino)
+
+        camino_name = activity_reference_df.loc[activity_reference_df.path==file_name,:].camino_name.iloc[0]
+        camino_distance = activity_reference_df.loc[activity_reference_df.path==file_name,:].distance_km.iloc[0].round(1)
+        camino_day = activity_reference_df.loc[activity_reference_df.path==file_name,:].camino_order.iloc[0].round(0)
+        
+        if plot_method=='poly_line':
+            if file_name in  camino_order_df.start_gpx.to_list() and add_camino_info==True:
+                
+                #CREATE GROUP - FIRST TRACK IN CAMINO
+                if camino_name == 'El Camino de Valencia (Bilbao a Valencia)':
+                    fg = folium.FeatureGroup(name=camino_name, show=True)
+                elif camino_name =='El Camino de Levante':
+                    fg = folium.FeatureGroup(name=camino_name, show=False)
+                else:
+                    fg = folium.FeatureGroup(name=camino_name, show=False)
+                
+                mymap.add_child(fg)
+                folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap).add_to(fg)
+                
+                #build starting marker
+                html_camino_start = """
+                Start of {camino_name}
+                """.format(camino_name=camino_name)
+                popup = folium.Popup(html_camino_start, max_width=400)
+                #nice green circle
+                folium.vector_layers.CircleMarker(location=[lat_start, long_start], radius=9, color='white', weight=1, fill_color='green', fill_opacity=1,  popup=html_camino_start).add_to(mymap).add_to(fg) 
+                #OVERLAY triangle
+                folium.RegularPolygonMarker(location=[lat_start, long_start], 
+                      fill_color='white', fill_opacity=1, color='white', number_of_sides=3, 
+                      radius=3, rotation=0, popup=html_camino_start).add_to(mymap).add_to(fg)
+
+            elif file_name in  camino_order_df.mid_gpx.to_list() and add_camino_info==True:
+                camino_summary = activity_reference_df.groupby('camino_name').apply(calc_camino_summary)
+                #add 'mid' or 'end' marker, depending on how many tracks there are on camino (to approximate midpoint)
+                marker_location = camino_order_df.loc[camino_order_df.mid_gpx==file_name,'marker'][0]
+                mask = (camino_summary.index==camino_name) 
+                camino_summary_for_icon = camino_summary[mask].melt().rename(columns={'variable':'Metric'}).set_index('Metric').round(1)
+                melt_mask = (camino_summary_for_icon['value'].notnull()) & (camino_summary_for_icon['value']!=0)
+                camino_summary_for_icon = pd.DataFrame(camino_summary_for_icon[melt_mask]['value'].apply(lambda x : "{:,}".format(x)))
+
+                html_camino_name = """
+                <div align="justify">
+                <h5>{camino_name}</h5><br>
+                </div>
+
+                """.format(camino_name=camino_name)
+                html = html_camino_name + """<div align="center">""" + camino_summary_for_icon.to_html(justify='center', header=False, index=True, index_names=False, col_space=300, classes='table-condensed table-responsive table-success') + """</div>""" #
+                popup = folium.Popup(html, max_width=300)
+                
+
+                if marker_location=='mid':
+                    #get midpoint long / lad
+                    length = df.shape[0]
+                    mid_index= math.ceil(length / 2)
+
+                    lat = df.iloc[mid_index]['Latitude']
+                    long = df.iloc[mid_index]['Longitude']
+                else:
+                    lat = lat_end
+                    long = long_end
+                mymap.add_child(fg)
+                #create line:
+                folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap).add_to(fg)
+                
+                folium.Marker([lat, long], popup=popup, icon=folium.Icon(color=activity_color, icon_color='white', icon=activity_icon, prefix='fa')).add_to(mymap).add_to(fg)
+
+            #CAMINO END:  
+            elif file_name in  camino_order_df.end_gpx.to_list() and add_camino_info==True:
+                mymap.add_child(fg)
+                #create line:
+                folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap).add_to(fg)
+                
+                #camino end marker ORIGINAL THAT WORKS
+                html_camino_end = """
+                End of {camino_name}
+                """.format(camino_name=camino_name)
+                popup = html_camino_end
+                
+                #nice red circle
+                folium.vector_layers.CircleMarker(location=[lat_end, long_end], radius=9, color='white', weight=1, fill_color='red', fill_opacity=1,  popup=popup).add_to(mymap).add_to(fg) 
+                #OVERLAY square
+                folium.RegularPolygonMarker(location=[lat_end, long_end], 
+                      fill_color='white', fill_opacity=1, color='white', number_of_sides=4, 
+                      radius=3, rotation=45, popup=popup).add_to(mymap).add_to(fg)            
+            elif add_camino_info==True:
+                mymap.add_child(fg)
+                folium.PolyLine(points, color=activity_color, weight=4.5, opacity=.5).add_to(mymap).add_to(fg)         
+           
+        if mark_track_terminals==True and (file_name not in  camino_order_df.end_gpx.to_list()):
+            day_terminal_message = 'End of Day ' +str(camino_day)[:-2]+ '.  Distance: ' + str(camino_distance) + ' km.'
+            mymap.add_child(fg)
+            folium.vector_layers.Circle(location=[lat_end, long_end], radius=track_terminal_radius_size, color=activity_color, fill_color=activity_color, weight=2, fill_opacity=0.3,  tooltip=day_terminal_message).add_to(mymap).add_to(fg)
+        if plot_method=='circle_marker':
+            coordinate_counter = 30
+            for coord in df[['Latitude','Longitude']].values:
+                if 1==1:
+                    #every 10th element, mark
+                    folium.CircleMarker(location=[coord[0],coord[1]], radius=1,color=activity_color).add_to(mymap)
+                coordinate_counter += 1
+                
+        i+=1
+        print('TRACK ADDED FOR created for ' + file_name)
+    if show_minimap == True:
+        minimap = MiniMap(zoom_level_offset=-4)
+        mymap.add_child(minimap)
+        
+        
+    #ADD EXTRA CAMINOS
+    camino_folder = 'caminos_wikiloc/'
+    camino_gpx_files = os.listdir(camino_folder)
+    camino_gpx_list = []
+    for file in camino_gpx_files:
+            full_path_file = camino_folder+file
+            if os.path.getsize(full_path_file) > 0 and full_path_file[-3:]=='gpx':
+                camino_gpx_list.append(full_path_file) 
+    i = 0
+    for file_name in camino_gpx_list:
+        df, points = process_gpx_to_df(file_name)
+        print('CAMINO dataframe and points created for ' + file_name)
+        if i == 0:
+            fg = folium.FeatureGroup(name='Future Caminos', show=False)
+        i += 1
+        mymap.add_child(fg)
+        wikiloc_camino_name=wikiloc_get_activity_name(file_name)
+        folium.PolyLine(points, color='black', tooltip=wikiloc_camino_name, weight=4, opacity=.3).add_to(mymap).add_to(fg)
+        
+        
+        #get start and end lat/long
+        lat_start = df.iloc[0].Latitude
+        long_start = df.iloc[0].Longitude
+        lat_end = df.iloc[-1].Latitude
+        long_end = df.iloc[-1].Longitude
+        
+        
+        #Start Point
+        html_camino_start = """
+        Start of {camino_name}
+        """.format(camino_name=wikiloc_camino_name)
+        #circle
+        folium.vector_layers.CircleMarker(location=[lat_start, long_start], radius=9, color='grey', weight=1, fill_color='grey', fill_opacity=1,  popup=html_camino_start).add_to(mymap).add_to(fg) 
+        #triangle
+        folium.RegularPolygonMarker(location=[lat_start, long_start], 
+              fill_color='white', fill_opacity=1, color='white', number_of_sides=3, 
+              radius=3, rotation=0, popup=html_camino_start).add_to(mymap).add_to(fg)
+
+        
+        #End point
+        popup = 'End of ' + wikiloc_camino_name
+        folium.vector_layers.CircleMarker(location=[lat_end, long_end], radius=9, color='white', weight=1, fill_color='grey', fill_opacity=1,  popup=popup).add_to(mymap).add_to(fg) 
+        #OVERLAY square
+        folium.RegularPolygonMarker(location=[lat_end, long_end], 
+              fill_color='white', fill_opacity=1, color='white', number_of_sides=4, 
+              radius=3, rotation=45, popup=popup).add_to(mymap).add_to(fg)  
+        
+        
+    #fullscreen option
+    if fullscreen==True:
+        plugins.Fullscreen(
+            position='topright',
+            title='Expand me',
+            title_cancel='Exit me',
+            force_separate_button=True
+        ).add_to(mymap)
+
+    folium.LayerControl(collapsed=True).add_to(mymap)
+    mymap.save(map_name)# saves to html file for display below
+    mymap
+    
+
+
+# In[ ]:
+
+
+camino_frances_paths=garmin_strava_combined[garmin_strava_combined.camino_family=='El Camino Frances'].sort_values(['camino_family', 'camino_name','date']).path.to_list()
+
+make_folium_map(camino_frances_paths, garmin_strava_combined, map_name='test_tracks.html', plot_method='poly_line', zoom_level=6, add_camino_info=True, mark_track_terminals=True, track_terminal_radius_size=1750)#, map_type='nat_geo')
+
+
+# In[ ]:
+
+
+get_ipython().run_cell_magic('HTML', '', '<iframe width="1000" height="500" src=\'test_tracks.html\'</iframe>')
+
+
+# In[25]:
+
+
+make_folium_map(camino_list_sorted, garmin_strava_combined, map_name='march_24_valencia_map.html', plot_method='poly_line', zoom_level=6, add_camino_info=True, mark_track_terminals=True, track_terminal_radius_size=1750, fullscreen=True)#, map_type='terrain')
+
