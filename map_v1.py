@@ -122,7 +122,7 @@ def calc_track_summary(x):
 tracks = pd.read_csv('Fahrradtouren.csv',sep=';',encoding='latin')
 
 # create a mask to check if the track should be evaluated
-mask = tracks.use_track is True
+mask = tracks.use_track == True
 
 # remove all tracks that should not be evaluated with the mask
 all_tracks_sorted = tracks[mask].sort_values(['family', 'camino_name','date']).path.to_list()
@@ -194,11 +194,11 @@ def make_folium_map(gpx_files,
 
         camino_order_df = activity_reference_df.groupby('camino_name').apply(get_mid_of_track)
 
-        camino_name = activity_reference_df.loc[activity_reference_df.path is file_name,:].camino_name.iloc[0]
-        camino_distance = activity_reference_df.loc[activity_reference_df.path is file_name,:].distance_km.iloc[0].round(1)
-        camino_day = activity_reference_df.loc[activity_reference_df.path is file_name,:].camino_order.iloc[0].round(0)
+        camino_name = activity_reference_df.loc[activity_reference_df.path == file_name,:].camino_name.iloc[0]
+        camino_distance = activity_reference_df.loc[activity_reference_df.path == file_name,:].distance_km.iloc[0].round(1)
+        camino_day = activity_reference_df.loc[activity_reference_df.path == file_name,:].camino_order.iloc[0].round(0)
 
-        if plot_method is 'poly_line':
+        if plot_method == 'poly_line':
             if file_name in camino_order_df.start_gpx.to_list() and add_track_info is True:
 
                 #CREATE GROUP - FIRST TRACK IN CAMINO
@@ -319,7 +319,7 @@ def make_folium_map(gpx_files,
             day_terminal_message = 'End of Day ' +str(camino_day)[:-2]+ '.  Distance: ' + str(camino_distance) + ' km.'
             mymap.add_child(fg)
             folium.vector_layers.Circle(location=[lat_end, long_end], radius=track_terminal_radius_size, color=activity_color, fill_color=activity_color, weight=2, fill_opacity=0.3,  tooltip=day_terminal_message).add_to(mymap).add_to(fg)
-        if plot_method is 'circle_marker':
+        if plot_method == 'circle_marker':
             coordinate_counter = 30
             for coord in df[['Latitude','Longitude']].values:
                 if 1==1:
