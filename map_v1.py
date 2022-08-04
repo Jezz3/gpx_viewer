@@ -68,20 +68,20 @@ def get_mid_of_track(x):
     mid_point = x['path'].count() /2
     if mid_point == 1:
         mid_point_int = int(mid_point)
-        mid_gpx = x.sort_values('date').iloc[mid_point_int].path
+        mid_gpx = x.sort_values('camino_order').iloc[mid_point_int].path
         marker = 'mid'
     elif mid_point.is_integer():
         mid_point_int = int(mid_point)
-        mid_gpx = x.sort_values('date').iloc[mid_point_int-1].path
+        mid_gpx = x.sort_values('camino_order').iloc[mid_point_int-1].path
         marker = 'end'
     else:
         mid_point_int = math.ceil(mid_point)
-        mid_gpx = x.sort_values('date').iloc[mid_point_int-1].path
+        mid_gpx = x.sort_values('camino_order').iloc[mid_point_int-1].path
         marker = 'mid'
     d['mid_gpx'] = mid_gpx
     d['marker'] = marker
-    d['start_gpx'] = x.sort_values('date').iloc[0].path
-    d['end_gpx'] = x.sort_values('date').iloc[-1].path
+    d['start_gpx'] = x.sort_values('camino_order').iloc[0].path
+    d['end_gpx'] = x.sort_values('camino_order').iloc[-1].path
 
     return pd.Series(d, index=['mid_gpx', 'marker', 'start_gpx', 'end_gpx' ])
 
@@ -119,13 +119,13 @@ def calc_track_summary(x):
     return pd.Series(d)
 
 # read csv file to get the information for the Path, camino_name, distance , date ....
-tracks = pd.read_csv('Fahrradtouren.csv',sep=';',encoding='latin')
+tracks = pd.read_csv('C:\\Users\\JP\\Documents\\Code\\gpx_viewer\\gpx_viewer\\Fahrradtouren.csv',sep=';',encoding='latin')
 
 # create a mask to check if the track should be evaluated
 mask = tracks.use_track == True
 
 # remove all tracks that should not be evaluated with the mask
-all_tracks_sorted = tracks[mask].sort_values(['family', 'camino_name','date']).path.to_list()
+all_tracks_sorted = tracks[mask].sort_values(['family', 'camino_name','camino_order']).path.to_list()
                     #tracks.mask(mask)
 def make_folium_map(gpx_files,
                     activity_reference_df,
@@ -164,8 +164,11 @@ def make_folium_map(gpx_files,
         elif activity=='hiking':
             activity_color='green'
             activity_icon='blind'
+        elif activity=='planned':
+            activity_color='blue'
+            activity_icon='pencil'
         else:
-            activity_color='red'
+            activity_color='blue'
 
         if i==0:
             if map_type=='regular':
@@ -180,6 +183,11 @@ def make_folium_map(gpx_files,
                                   attr="Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC",
                                   name='Nat Geo Map').add_to(mymap)
 
+                folium.TileLayer( 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+                                  attr='<a href="https://github.com/cyclosm/cyclosm-cartocss-style/releases" title="CyclOSM - Open Bicycle render">CyclOSM</a> | Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                                  name='Cycle OSM').add_to(mymap)
+
+
             elif map_type=='terrain':
                 mymap = folium.Map( location=[ df.Latitude.mean(), df.Longitude.mean() ],
                                     tiles='http://tile.stamen.com/terrain/{z}/{x}/{y}.jpg',
@@ -191,6 +199,12 @@ def make_folium_map(gpx_files,
                                     tiles='https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}',
                                     attr="Tiles &copy; Esri &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC",
                                     zoom_start=zoom_level)
+
+            elif map_type=='opencycle':
+                mymap = folium.Map( location=[ df.Latitude.mean(), df.Longitude.mean() ],
+                                    tiles='https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+                                    attr = '<a href="https://github.com/cyclosm/cyclosm-cartocss-style/releases" title="CyclOSM - Open Bicycle render">CyclOSM</a> | Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                                    zoom_start=zoom_level)                     
 
         camino_order_df = activity_reference_df.groupby('camino_name').apply(get_mid_of_track)
 
@@ -291,7 +305,7 @@ def make_folium_map(gpx_files,
                 """.format(camino_name=camino_name)
                 popup = html_camino_end
 
-                #nice red circle
+                #nice red circleTRACK ADDED
                 folium.vector_layers.CircleMarker( location=[lat_end, long_end],
                                                    radius=9,
                                                    color='white',
