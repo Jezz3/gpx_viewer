@@ -119,14 +119,15 @@ def calc_track_summary(x):
     return pd.Series(d)
 
 # read csv file to get the information for the Path, camino_name, distance , date ....
+# format: CSV(Trennzeichen-getrennt)*.csv
 tracks = pd.read_csv('C:\\Users\\JP\\Documents\\Code\\gpx_viewer\\gpx_viewer\\Fahrradtouren.csv',sep=';',encoding='latin')
-
 # create a mask to check if the track should be evaluated
 mask = tracks.use_track == True
 
 # remove all tracks that should not be evaluated with the mask
 all_tracks_sorted = tracks[mask].sort_values(['family', 'camino_name','camino_order']).path.to_list()
                     #tracks.mask(mask)
+
 def make_folium_map(gpx_files,
                     activity_reference_df,
                     map_name='my_folium_map.html',
@@ -138,10 +139,11 @@ def make_folium_map(gpx_files,
                     show_minimap=False,
                     map_type='regular',
                     fullscreen=False):
-
     pd.set_option('display.precision', 0)
     i=0
+    print(activity_reference_df)
     for file_name in gpx_files:
+        print()
         if os.path.getsize(file_name) == 0:
             print('skipping this file due to it being EMPTY: ' + file_name)
             continue
@@ -158,8 +160,12 @@ def make_folium_map(gpx_files,
 
         #get activity type
         activity = activity_reference_df[activity_reference_df.path==file_name].iloc[0].activity_name
+        #get family number to change path color from the activity_color list according to the family number
+        family = activity_reference_df[activity_reference_df.path==file_name].iloc[0].family
+
         if activity=='cycling':
-            activity_color='red'
+            #List of colors for the different routes
+            activity_color=['empty','green','blue','red','orange','darkgreen','purple','black','darkred','red']
             activity_icon='bicycle'
         elif activity=='hiking':
             activity_color='green'
@@ -220,7 +226,7 @@ def make_folium_map(gpx_files,
 
                 mymap.add_child(fg)
                 folium.PolyLine( points,
-                                 color=activity_color,
+                                 color=activity_color[family],
                                  weight=4.5,
                                  opacity=.5).add_to(mymap).add_to(fg)
 
@@ -279,13 +285,13 @@ def make_folium_map(gpx_files,
                 mymap.add_child(fg)
                 #create line:
                 folium.PolyLine( points,
-                                 color=activity_color,
+                                 color=activity_color[family],
                                  weight=4.5,
                                  opacity=.5).add_to(mymap).add_to(fg)
 
                 folium.Marker( [lat, long],
                                popup=popup,
-                               icon=folium.Icon( color=activity_color,
+                               icon=folium.Icon( color=activity_color[family],
                                                  icon_color='white',
                                                  icon=activity_icon,
                                                  prefix='fa')).add_to(mymap).add_to(fg)
@@ -295,7 +301,7 @@ def make_folium_map(gpx_files,
                 mymap.add_child(fg)
                 #create line:
                 folium.PolyLine( points,
-                                 color=activity_color,
+                                 color=activity_color[family],
                                  weight=4.5,
                                  opacity=.5).add_to(mymap).add_to(fg)
 
@@ -325,20 +331,20 @@ def make_folium_map(gpx_files,
             elif add_track_info is True:
                 mymap.add_child(fg)
                 folium.PolyLine( points,
-                                 color=activity_color,
+                                 color=activity_color[family],
                                  weight=4.5,
                                  opacity=.5).add_to(mymap).add_to(fg)
 
         if mark_track_terminals is True and (file_name not in  camino_order_df.end_gpx.to_list()):
             day_terminal_message = 'End of Day ' +str(camino_day)[:-2]+ '.  Distance: ' + str(camino_distance) + ' km.'
             mymap.add_child(fg)
-            folium.vector_layers.Circle(location=[lat_end, long_end], radius=track_terminal_radius_size, color=activity_color, fill_color=activity_color, weight=2, fill_opacity=0.3,  tooltip=day_terminal_message).add_to(mymap).add_to(fg)
+            folium.vector_layers.Circle(location=[lat_end, long_end], radius=track_terminal_radius_size, color=activity_color[family], fill_color=activity_color[family], weight=2, fill_opacity=0.3,  tooltip=day_terminal_message).add_to(mymap).add_to(fg)
         if plot_method == 'circle_marker':
             coordinate_counter = 30
             for coord in df[['Latitude','Longitude']].values:
                 if 1==1:
                     #every 10th element, mark
-                    folium.CircleMarker(location=[coord[0],coord[1]], radius=1,color=activity_color).add_to(mymap)
+                    folium.CircleMarker(location=[coord[0],coord[1]], radius=1,color=activity_color[family]).add_to(mymap)
                 coordinate_counter += 1
 
         i+=1
@@ -357,7 +363,9 @@ def make_folium_map(gpx_files,
         ).add_to(mymap)
 
     folium.LayerControl(collapsed=True).add_to(mymap)
-    # saves to html file for display below
-    mymap.save(map_name)
+    # Get Code directory and save map to html file for display
+    file_path = os.path.abspath(os.path.dirname(__file__))
+    save_to_path = os.path.join(file_path, map_name)
+    mymap.save(save_to_path)
 
 make_folium_map(all_tracks_sorted,tracks, map_name='all_tracks.html', plot_method='poly_line', zoom_level=6, add_track_info=True, mark_track_terminals=True, track_terminal_radius_size=1750, fullscreen = True, show_minimap=False)#, map_type='nat_geo')
