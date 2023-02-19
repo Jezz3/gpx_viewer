@@ -66,24 +66,33 @@ def process_gpx_to_df(file_name):
 def get_mid_of_track(x):
     d={}
     mid_point = x['path'].count() /2
-    if mid_point == 1:
-        mid_point_int = int(mid_point)
-        mid_gpx = x.sort_values('camino_order').iloc[mid_point_int].path
+    # if single track
+    if mid_point == 1/2:
+        singletrack = x.sort_values('camino_order').iloc[0].path
         marker = 'mid'
-    elif mid_point.is_integer():
-        mid_point_int = int(mid_point)
-        mid_gpx = x.sort_values('camino_order').iloc[mid_point_int-1].path
-        marker = 'end'
+        d['singletrack'] = singletrack
+        d['marker'] = marker
+        d['mid_gpx'] = x.sort_values('camino_order').iloc[0].path
     else:
-        mid_point_int = math.ceil(mid_point)
-        mid_gpx = x.sort_values('camino_order').iloc[mid_point_int-1].path
-        marker = 'mid'
-    d['mid_gpx'] = mid_gpx
-    d['marker'] = marker
-    d['start_gpx'] = x.sort_values('camino_order').iloc[0].path
-    d['end_gpx'] = x.sort_values('camino_order').iloc[-1].path
+        if mid_point == 1:
+            mid_point_int = int(mid_point)
+            mid_gpx = x.sort_values('camino_order').iloc[mid_point_int].path
+            marker = 'mid'
+        elif mid_point.is_integer():
+            mid_point_int = int(mid_point)
+            mid_gpx = x.sort_values('camino_order').iloc[mid_point_int-1].path
+            marker = 'end'
+        else:
+            mid_point_int = math.ceil(mid_point)
+            mid_gpx = x.sort_values('camino_order').iloc[mid_point_int-1].path
+            marker = 'mid'
 
-    return pd.Series(d, index=['mid_gpx', 'marker', 'start_gpx', 'end_gpx' ])
+        d['mid_gpx'] = mid_gpx
+        d['marker'] = marker
+        d['start_gpx'] = x.sort_values('camino_order').iloc[0].path
+        d['end_gpx'] = x.sort_values('camino_order').iloc[-1].path
+
+    return pd.Series(d, index=['singletrack','mid_gpx', 'marker', 'start_gpx', 'end_gpx' ])
 
 
 def calc_track_summary(x):
@@ -165,7 +174,7 @@ def make_folium_map(gpx_files,
 
         if activity=='cycling':
             #List of colors for the different routes
-            activity_color=['empty','green','blue','red','orange','darkgreen','purple','black','darkred','red','gold','magenta','cyan']
+            activity_color=['empty','green','blue','red','orange','darkgreen','purple','blue','darkred','red','orange','cadetblue','green','blue','red',]
             activity_icon='bicycle'
         elif activity=='hiking':
             activity_color='green'
@@ -210,7 +219,7 @@ def make_folium_map(gpx_files,
                 mymap = folium.Map( location=[ df.Latitude.mean(), df.Longitude.mean() ],
                                     tiles='https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
                                     attr = '<a href="https://github.com/cyclosm/cyclosm-cartocss-style/releases" title="CyclOSM - Open Bicycle render">CyclOSM</a> | Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-                                    zoom_start=zoom_level)                     
+                                    zoom_start=zoom_level)
 
         camino_order_df = activity_reference_df.groupby('camino_name').apply(get_mid_of_track)
 
@@ -218,10 +227,114 @@ def make_folium_map(gpx_files,
         camino_distance = activity_reference_df.loc[activity_reference_df.path == file_name,:].distance_km.iloc[0].round(1)
         camino_day = activity_reference_df.loc[activity_reference_df.path == file_name,:].camino_order.iloc[0].round(0)
 
+        # Plot the gpx tracks and add the start, mid and end marker
         if plot_method == 'poly_line':
-            if file_name in camino_order_df.start_gpx.to_list() and add_track_info is True:
+            # for singletrack to start mid and end point all together on the same camino.
+            if file_name in camino_order_df.singletrack.to_list() and add_track_info is True:
 
-                #CREATE GROUP - FIRST TRACK IN CAMINO
+                #For start of Camino create group
+                fg = folium.FeatureGroup(name=camino_name, show=True, overlay=True)
+
+                mymap.add_child(fg)
+                folium.PolyLine( points,
+                                 color=activity_color[family],
+                                 weight=4.5,
+                                 opacity=.5).add_to(mymap).add_to(fg)
+
+                #build starting marker
+                html_camino_start = """
+                Start of {camino_name}
+                """.format(camino_name=camino_name)
+                popup = folium.Popup(html_camino_start, max_width=400)
+                #nice green circle
+                folium.vector_layers.CircleMarker( location=[lat_start, long_start],
+                                                   radius=9,
+                                                   color='white',
+                                                   weight=1,
+                                                   fill_color='green',
+                                                   fill_opacity=1,
+                                                   popup=html_camino_start).add_to(mymap).add_to(fg)
+                #OVERLAY triangle
+                folium.RegularPolygonMarker( location=[lat_start, long_start],
+                                             fill_color='white',
+                                             fill_opacity=1,
+                                             color='white',
+                                             number_of_sides=3,
+                                             radius=3,
+                                             rotation=0,
+                                             popup=html_camino_start).add_to(mymap).add_to(fg)
+                activity_reference_df.groupby('camino_name')
+                camino_summary = activity_reference_df.groupby('camino_name').apply(calc_track_summary)
+
+                # Camino Mid
+                #add 'mid' or 'end' marker, depending on how many tracks there are on camino (to approximate midpoint)
+                marker_location = camino_order_df.loc[camino_order_df.mid_gpx==file_name,'marker'][0]
+                mask_2 = (camino_summary.index==camino_name)
+                camino_summary_for_icon = camino_summary[mask_2].melt().rename(columns={'variable':'Metric'}).set_index('Metric').round(1)
+                melt_mask = (camino_summary_for_icon['value'].notnull()) & (camino_summary_for_icon['value']!=0)
+                camino_summary_for_icon = pd.DataFrame(camino_summary_for_icon[melt_mask]['value'].apply(lambda x : "{:,}".format(x)))
+
+                html_camino_name = """
+                <div align="justify">
+                <h5>{camino_name}</h5><br>
+                </div>
+
+                """.format(camino_name=camino_name)
+                html = html_camino_name + """<div align="center">""" + camino_summary_for_icon.to_html(justify='center', header=False, index=True, index_names=False, col_space=300, classes='table-condensed table-responsive table-success') + """</div>""" #
+                popup = folium.Popup(html, max_width=300)
+
+                if marker_location=='mid':
+                    #get midpoint long / lad
+                    length = df.shape[0]
+                    mid_index= math.ceil(length / 2)
+
+                    lat = df.iloc[mid_index]['Latitude']
+                    long = df.iloc[mid_index]['Longitude']
+                else:
+                    lat = lat_end
+                    long = long_end
+                mymap.add_child(fg)
+                #create line:
+                folium.PolyLine( points,
+                                 color=activity_color[family],
+                                 weight=4.5,
+                                 opacity=.5).add_to(mymap).add_to(fg)
+
+                folium.Marker( [lat, long],
+                               popup=popup,
+                               icon=folium.Icon( color=activity_color[family],
+                                                 icon_color='white',
+                                                 icon=activity_icon,
+                                                 prefix='fa')).add_to(mymap).add_to(fg)
+
+                #Camino End marker
+                html_camino_end = """
+                End of {camino_name}
+                """.format(camino_name=camino_name)
+                popup = html_camino_end
+
+                #nice red circle
+                folium.vector_layers.CircleMarker( location=[lat_end, long_end],
+                                                   radius=9,
+                                                   color='white',
+                                                   weight=1,
+                                                   fill_color='red',
+                                                   fill_opacity=1,
+                                                   popup=popup).add_to(mymap).add_to(fg)
+                #overlay square
+                folium.RegularPolygonMarker( location=[lat_end, long_end],
+                                             fill_color='white',
+                                             fill_opacity=1,
+                                             color='white',
+                                             number_of_sides=4,
+                                             radius=3,
+                                             rotation=45,
+                                             popup=popup).add_to(mymap).add_to(fg)
+
+            # For start of camino create group
+            elif file_name in camino_order_df.start_gpx.to_list() and add_track_info is True:
+
+                #For start of Camino create group
                 fg = folium.FeatureGroup(name=camino_name, show=True, overlay=True)
 
                 mymap.add_child(fg)
@@ -253,6 +366,7 @@ def make_folium_map(gpx_files,
                                              rotation=0,
                                              popup=html_camino_start).add_to(mymap).add_to(fg)
 
+            # For Middle of Camino
             elif file_name in camino_order_df.mid_gpx.to_list() and add_track_info is True:
                 activity_reference_df.groupby('camino_name')
                 camino_summary = activity_reference_df.groupby('camino_name').apply(calc_track_summary)
@@ -296,7 +410,7 @@ def make_folium_map(gpx_files,
                                                  icon=activity_icon,
                                                  prefix='fa')).add_to(mymap).add_to(fg)
 
-            #CAMINO END:
+            #camino end marker
             elif file_name in  camino_order_df.end_gpx.to_list() and add_track_info is True:
                 mymap.add_child(fg)
                 #create line:
@@ -305,13 +419,13 @@ def make_folium_map(gpx_files,
                                  weight=4.5,
                                  opacity=.5).add_to(mymap).add_to(fg)
 
-                #camino end marker ORIGINAL THAT WORKS
+                #camino end marker
                 html_camino_end = """
                 End of {camino_name}
                 """.format(camino_name=camino_name)
                 popup = html_camino_end
 
-                #nice red circleTRACK ADDED
+                #nice red circle
                 folium.vector_layers.CircleMarker( location=[lat_end, long_end],
                                                    radius=9,
                                                    color='white',
@@ -319,7 +433,7 @@ def make_folium_map(gpx_files,
                                                    fill_color='red',
                                                    fill_opacity=1,
                                                    popup=popup).add_to(mymap).add_to(fg)
-                #OVERLAY square
+                #overlay square
                 folium.RegularPolygonMarker( location=[lat_end, long_end],
                                              fill_color='white',
                                              fill_opacity=1,
@@ -335,7 +449,7 @@ def make_folium_map(gpx_files,
                                  weight=4.5,
                                  opacity=.5).add_to(mymap).add_to(fg)
 
-        if mark_track_terminals is True and (file_name not in  camino_order_df.end_gpx.to_list()):
+        if mark_track_terminals is True and (file_name not in camino_order_df.singletrack.to_list()) and (file_name not in  camino_order_df.end_gpx.to_list()):
             day_terminal_message = 'End of Day ' +str(camino_day)[:-2]+ '.  Distance: ' + str(camino_distance) + ' km.'
             mymap.add_child(fg)
             folium.vector_layers.Circle(location=[lat_end, long_end], radius=track_terminal_radius_size, color=activity_color[family], fill_color=activity_color[family], weight=2, fill_opacity=0.3,  tooltip=day_terminal_message).add_to(mymap).add_to(fg)
@@ -344,7 +458,7 @@ def make_folium_map(gpx_files,
             for coord in df[['Latitude','Longitude']].values:
                 if 1==1:
                     #every 10th element, mark
-                    folium.CircleMarker(location=[coord[0],coord[1]], radius=1,color=activity_color[family]).add_to(mymap)
+                    folium.CircleMarker(location=[coord[0],coord[1]], radius=5,color=activity_color[family]).add_to(mymap)
                 coordinate_counter += 1
 
         i+=1
