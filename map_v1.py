@@ -48,6 +48,7 @@ def process_gpx_to_df(file_name):
 
     # Load the data into a Pandas dataframe
     data = []
+    
     #segment_length = segment.length_3d()
     for point_idx, point in enumerate(segment.points):
         data.append([point.longitude, point.latitude,point.elevation,
@@ -78,10 +79,6 @@ def get_mid_of_track(x):
             mid_point_int = int(mid_point)
             mid_gpx = x.sort_values('camino_order').iloc[mid_point_int].path
             marker = 'mid'
-        elif mid_point.is_integer():
-            mid_point_int = int(mid_point)
-            mid_gpx = x.sort_values('camino_order').iloc[mid_point_int-1].path
-            marker = 'end'
         else:
             mid_point_int = math.ceil(mid_point)
             mid_gpx = x.sort_values('camino_order').iloc[mid_point_int-1].path
@@ -159,7 +156,7 @@ def make_folium_map(gpx_files,
 
         #convert to DF and points tuple
         df, points = process_gpx_to_df(file_name)
-        print('dataframe and points created for ' + file_name)
+        #print('dataframe and points created for ' + file_name)
 
         #get start and end lat/long
         lat_start = df.iloc[0].Latitude
@@ -477,9 +474,20 @@ def make_folium_map(gpx_files,
         ).add_to(mymap)
 
     folium.LayerControl(collapsed=True).add_to(mymap)
+
     # Get Code directory and save map to html file for display
     file_path = os.path.abspath(os.path.dirname(__file__))
     save_to_path = os.path.join(file_path, map_name)
     mymap.save(save_to_path)
 
-make_folium_map(all_tracks_sorted,tracks, map_name='all_tracks.html', plot_method='poly_line', zoom_level=6, add_track_info=True, mark_track_terminals=True, track_terminal_radius_size=1750, fullscreen = True, show_minimap=False)#, map_type='nat_geo')
+# run function to create html map
+make_folium_map(all_tracks_sorted,tracks,
+                map_name='all_tracks.html',
+                plot_method='poly_line',
+                zoom_level=6,
+                add_track_info=True,
+                mark_track_terminals=True,
+                track_terminal_radius_size=1750,
+                fullscreen = True,
+                show_minimap=False)
+                #, map_type='nat_geo')
