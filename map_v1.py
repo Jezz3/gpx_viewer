@@ -171,10 +171,10 @@ def make_folium_map(gpx_files,
 
         if activity=='cycling':
             #List of colors for the different routes
-            activity_color=['empty','green','blue','red','orange','darkgreen','purple','blue','darkred','red','orange','cadetblue','green','blue','red',]
+            activity_color=['empty','green','blue','red','orange','darkgreen','purple','blue','darkred','red','orange','cadetblue','green','blue','red','orange','green']
             activity_icon='bicycle'
         elif activity=='hiking':
-            activity_color='green'
+            activity_color=['empty','green','blue','red','orange','darkgreen','purple','blue','darkred','red','orange','cadetblue','green','blue','red','orange','green']
             activity_icon='blind'
         elif activity=='planned':
             activity_color='blue'
